@@ -6,11 +6,16 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <NoWarn>CS8618</NoWarn>
+        <LangVersion>preview</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\SourceGenerators.Attributes\SourceGenerators.Attributes.csproj" />
       <ProjectReference Include="..\SourceGenerators.Generator\SourceGenerators.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="NetEscapades.EnumGenerators" Version="1.0.0-beta04" />
     </ItemGroup>
 
 </Project>

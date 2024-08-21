@@ -3,7 +3,7 @@
 namespace SourceGenerators.SecretStuff;
 
 [JsonSerializable(typeof(DemoEntry))]
-[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Serialization, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSourceGenerationOptions(WriteIndented = true)]
 public partial class DemoEntryContext : JsonSerializerContext
 {
 }

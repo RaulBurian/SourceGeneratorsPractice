@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using SourceGenerators.Attributes;
 
 namespace SourceGenerators.SecretStuff;
@@ -9,6 +10,7 @@ public partial class DemoEntry
 
     public string Name { get; set; }
 
+    [DeconstructIgnore]
     public DateTime EffectiveDate { get; set; }
 
     public int Grade { get; set; }
@@ -21,7 +23,9 @@ public partial class DemoEntry
 [Deconstruct]
 public partial class ComplexType
 {
+    [JsonPropertyName("oneProp")]
     public string OneProp { get; set; }
 
+    [JsonPropertyName("another")]
     public string AnotherProp { get; set; }
 }

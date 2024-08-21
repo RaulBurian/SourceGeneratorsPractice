@@ -1,37 +1,61 @@
 ﻿using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace SourceGenerators.Generator
 {
     [Generator]
-    public class DeconstructGenerator : ISourceGenerator
+    public class DeconstructGenerator : IIncrementalGenerator
     {
-        public void Initialize(GeneratorInitializationContext context)
+        private static bool IsDeconstructAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "Deconstruct";
+
+        private static bool IsDeconstructIgnoreAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "DeconstructIgnore";
+        public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-// #if DEBUG
-//             if (!Debugger.IsAttached)
-//             {
-//                 Debugger.Launch();
-//             }
-// #endif
+//#if DEBUG
+//            if (!Debugger.IsAttached)
+//            {
+//                Debugger.Launch();
+//            }
+//#endif
+
+            IncrementalValuesProvider<ClassDeclarationSyntax> classDecl = context.SyntaxProvider.CreateSyntaxProvider(
+                predicate: (s, _) => IsSyntaxTargetForGeneration(s),
+                transform: (ctx, _) => GetSemanticTargetForGeneration(ctx)
+            ).Where(item => item != null);
+
+            IncrementalValueProvider<(Compilation, ImmutableArray<ClassDeclarationSyntax>)> compilationAndClasses
+                = context.CompilationProvider.Combine(classDecl.Collect());
+
+            context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Item1, source.Item2, spc));
         }
 
-        public void Execute(GeneratorExecutionContext context)
+        private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
+            => node is ClassDeclarationSyntax cdcl && cdcl.AttributeLists.Count > 0;
+
+        private static ClassDeclarationSyntax GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
         {
-            var syntaxTrees = context.Compilation.SyntaxTrees;
+            var classDeclarationSyntax = (ClassDeclarationSyntax)context.Node;
+
+            return classDeclarationSyntax.AttributeLists.Any(attr => attr.Attributes.Any(IsDeconstructAttribute))
+                ? classDeclarationSyntax
+                : null;
+        }
+
+        private static void Execute(Compilation compilation, ImmutableArray<ClassDeclarationSyntax> classes, SourceProductionContext context)
+        {
+            var syntaxTrees = compilation.SyntaxTrees;
             var treeRootsWithDeconstructAttribute = syntaxTrees.Where(tree => tree.GetRoot().DescendantNodes().OfType<AttributeSyntax>().Any(IsDeconstructAttribute)).Select(tree=>tree.GetRoot());
 
             foreach (var root in treeRootsWithDeconstructAttribute)
             {
                 var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
-                var usingDirectivesAsText = string.Join(System.Environment.NewLine, usingDirectives);
+                var usingDirectivesAsText = string.Join("\r\n", usingDirectives);
 
                 var namespaceDeclaration = root.DescendantNodes().OfType<FileScopedNamespaceDeclarationSyntax>().First();
                 var namespaceDeclarationAsText = namespaceDeclaration.Name.ToString();
@@ -78,7 +102,7 @@ namespace {namespaceDeclarationAsText};
 {{
     public void Deconstruct({string.Join(", ", deconstructParamsBuilder)})
     {{
-        {string.Join(System.Environment.NewLine, deconstructBodyBuilder)}
+        {string.Join("\r\n", deconstructBodyBuilder)}
     }}
 }}"
                     );
@@ -87,9 +111,5 @@ namespace {namespaceDeclarationAsText};
                 }
             }
         }
-
-        private static bool IsDeconstructAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "Deconstruct";
-
-        private static bool IsDeconstructIgnoreAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "DeconstructIgnore";
     }
 }

@@ -62,11 +62,13 @@ if (MyEnumExtensions.IsDefined((MyEnum)2))
 
 #region Our own
 
-var (id, name, effectiveDate, grade, aList, complexObject) = entry;
+
+// entry.Deconstruct(out var id, out var name, out var effectiveDate, out var grade, out var aList, out var complexObject);
+var (id, name, grade, aList, complexObject) = entry;
 
 foreach (var i in ..5)
 {
-    Console.WriteLine(JsonSerializer.Serialize(new { id, name, effectiveDate, grade, aList, complexObject }));
+    Console.WriteLine(JsonSerializer.Serialize(new { id, name, grade, aList, complexObject }));
 }
 
 #endregion

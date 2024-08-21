@@ -15,15 +15,9 @@ namespace SourceGenerators.Generator
         private static bool IsDeconstructAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "Deconstruct";
 
         private static bool IsDeconstructIgnoreAttribute(AttributeSyntax attributeSyntax) => attributeSyntax.Name.ToString() is "DeconstructIgnore";
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-//#if DEBUG
-//            if (!Debugger.IsAttached)
-//            {
-//                Debugger.Launch();
-//            }
-//#endif
-
             IncrementalValuesProvider<ClassDeclarationSyntax> classDecl = context.SyntaxProvider.CreateSyntaxProvider(
                 predicate: (s, _) => IsSyntaxTargetForGeneration(s),
                 transform: (ctx, _) => GetSemanticTargetForGeneration(ctx)
@@ -49,53 +43,42 @@ namespace SourceGenerators.Generator
 
         private static void Execute(Compilation compilation, ImmutableArray<ClassDeclarationSyntax> classes, SourceProductionContext context)
         {
-            var syntaxTrees = compilation.SyntaxTrees;
-            var treeRootsWithDeconstructAttribute = syntaxTrees.Where(tree => tree.GetRoot().DescendantNodes().OfType<AttributeSyntax>().Any(IsDeconstructAttribute)).Select(tree=>tree.GetRoot());
-
-            foreach (var root in treeRootsWithDeconstructAttribute)
+            foreach (var classDeclaration in classes)
             {
-                var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>();
-                var usingDirectivesAsText = string.Join("\r\n", usingDirectives);
-
-                var namespaceDeclaration = root.DescendantNodes().OfType<FileScopedNamespaceDeclarationSyntax>().First();
+                // var namespaceDeclaration = classDeclaration.pare.OfType<FileScopedNamespaceDeclarationSyntax>().First();
+                var namespaceDeclaration = classDeclaration.Parent as FileScopedNamespaceDeclarationSyntax;
                 var namespaceDeclarationAsText = namespaceDeclaration.Name.ToString();
 
-                var classesWithDeconstructAttribute = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
-                    .Where(classDeclaration => classDeclaration.AttributeLists.Any(attr => attr.Attributes.Any(IsDeconstructAttribute)));
+                var modifiers = classDeclaration.Modifiers.ToString();
 
-                foreach (var classDeclaration in classesWithDeconstructAttribute)
+                var properties = classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
+                    .Where(prop => !prop.AttributeLists.Any(attributeList => attributeList.Attributes.Any(IsDeconstructIgnoreAttribute)))
+                    .Where(prop => prop.Modifiers.All(modifier => modifier.Text is "public"));
+
+                var propertiesDetails = properties.Select(propertyDeclaration =>
                 {
-                    var modifiers = classDeclaration.Modifiers.ToString();
+                    var identifier = propertyDeclaration.Identifier.Text;
+                    var type = propertyDeclaration.Type.GetText().ToString();
 
-                    var properties = classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
-                        .Where(prop => !prop.AttributeLists.Any(attributeList => attributeList.Attributes.Any(IsDeconstructIgnoreAttribute)))
-                        .Where(prop => prop.Modifiers.All(modifier => modifier.Text is "public"));
+                    return (identifier, type);
+                }).ToList();
 
-                    var propertiesDetails = properties.Select(propertyDeclaration =>
-                    {
-                        var identifier = propertyDeclaration.Identifier.Text;
-                        var type = propertyDeclaration.Type.GetText().ToString();
+                var deconstructParamsBuilder = new List<string>();
+                var deconstructBodyBuilder = new List<string>();
 
-                        return (identifier, type);
-                    }).ToList();
+                for (var index = 0; index < propertiesDetails.Count; index++)
+                {
+                    var (identifier, type) = propertiesDetails[index];
+                    var camelCaseIdentifier = identifier.ToCamelCase();
 
-                    var deconstructParamsBuilder = new List<string>();
-                    var deconstructBodyBuilder = new List<string>();
+                    deconstructParamsBuilder.Add($"out {type}{camelCaseIdentifier}");
+                    deconstructBodyBuilder.Add($"{(index > 0 ? StringExtensions.SpaceX(8) : string.Empty)}{camelCaseIdentifier} = {identifier};");
+                }
 
-                    for (var index = 0; index < propertiesDetails.Count; index++)
-                    {
-                        var (identifier, type) = propertiesDetails[index];
-                        var camelCaseIdentifier = identifier.ToCamelCase();
 
-                        deconstructParamsBuilder.Add($"out {type}{camelCaseIdentifier}");
-                        deconstructBodyBuilder.Add($"{(index > 0 ? StringExtensions.SpaceX(8) : string.Empty)}{camelCaseIdentifier} = {identifier};");
-                    }
+                var sourceBuilder = new StringBuilder();
 
-                    var sourceBuilder = new StringBuilder();
-
-                    sourceBuilder.Append($@"
-{usingDirectivesAsText}
-
+                sourceBuilder.Append($@"
 namespace {namespaceDeclarationAsText};
 
 {modifiers} class {classDeclaration.Identifier.Text}
@@ -105,10 +88,9 @@ namespace {namespaceDeclarationAsText};
         {string.Join("\r\n", deconstructBodyBuilder)}
     }}
 }}"
-                    );
+                );
 
-                    context.AddSource($"DeconstructGenerator_{classDeclaration.Identifier.Text}", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
-                }
+                context.AddSource($"DeconstructGenerator_{classDeclaration.Identifier.Text}", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
             }
         }
     }

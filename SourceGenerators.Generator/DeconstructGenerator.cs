@@ -75,9 +75,7 @@ namespace SourceGenerators.Generator
                     deconstructBodyBuilder.Add($"{(index > 0 ? StringExtensions.SpaceX(8) : string.Empty)}{camelCaseIdentifier} = {identifier};");
                 }
 
-
                 var sourceBuilder = new StringBuilder();
-
                 sourceBuilder.Append($@"
 namespace {namespaceDeclarationAsText};
 
